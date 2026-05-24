@@ -334,7 +334,7 @@
 
 <script>
 // ═══════ CONFIG ═══════
-const API_URL='https://script.google.com/macros/s/AKfycbyq8nuu3B0mVguIBtIvZyLSL0rGu4MqqLxKD8QjP5AZ6_3j9S36pFRvqd-T20VER-V_Gw/exec';
+const API_URL='https://script.google.com/macros/s/AKfycbyerP9th-8ArFWTTz1dVM99GWWpWS3NGociH8q3VcP1VxUpTXHrQG7UvkUVx0C2Eo47zw/exec';
 const CREDS={user:'logisticainner',pass:'innerlogistica123'};
 const TRANSPORTADORAS=['Mandaê','Inner Transporte','Correios','Lalamove','Outros'];
 const EMPRESAS=['AD Vinhos e Gastronomia','Inner Editora','Inner Eventos'];
@@ -385,10 +385,12 @@ function setSyncStatus(msg,tipo=''){
 async function apiCall(body){
   setSyncStatus('⟳ Sincronizando…');
   try{
-    const resp=await fetch(API_URL,{
-      method:'POST',
-      body:JSON.stringify(body)
-    });
+    const action=body.action;
+    let url=API_URL+'?action='+encodeURIComponent(action);
+    if(action==='salvarNF') url+='&nf='+encodeURIComponent(JSON.stringify(body.nf));
+    else if(action==='atualizarStatus') url+='&id='+encodeURIComponent(body.id)+'&status='+encodeURIComponent(body.status);
+    else if(action==='buscarNFs'&&body.filtros&&body.filtros.data) url+='&data='+encodeURIComponent(body.filtros.data);
+    const resp=await fetch(url);
     const data=await resp.json();
     if(data.erro) throw new Error(data.erro);
     setSyncStatus('✓ Sincronizado','ok');
