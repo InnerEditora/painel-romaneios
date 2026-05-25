@@ -910,7 +910,22 @@ function renderHistorico(rows){
 
 // ═══════ EXCEL EXPORT ═══════
 let _romaneioDataAtual = [];
-let _romaneioTituloAtual = '';
+
+// Endereços por transportadora
+const TRANSP_INFO = {
+  'Mandaê':          {nome:'Mandaê Serviços de Consultoria em Logistica LTDA.', end:'Rua Maj Paladino, 128 - Vila Ribeiro de Barros', cidade:'São Paulo/SP', cep:'05307-000', tel:'(11) 99352-9352'},
+  'Inner Transporte':{nome:'Inner Transporte', end:'Rua Ibiraja, 7 - Vila Guarani', cidade:'São Paulo/SP', cep:'04310-020', tel:'11 96865-9315'},
+  'Correios':        {nome:'Correios - ECT', end:'', cidade:'', cep:'', tel:''},
+  'Lalamove':        {nome:'Lalamove', end:'', cidade:'', cep:'', tel:''},
+  'Outros':          {nome:'Outros', end:'', cidade:'', cep:'', tel:''},
+};
+
+// Remetentes por empresa
+const EMIT_INFO = {
+  'AD Vinhos e Gastronomia': {nome:'AD Vinhos e Gastronomia Ltda.', end:'Rua Ibiraja, 7 - Andar Térreo, Sala 02 - Vila Guarani', cidade:'São Paulo/SP', cep:'04310-020', tel:'11 96865-9315'},
+  'Inner Editora':           {nome:'Inner Editora Ltda.', end:'Rua Ibiraja, 7 - Andar 02 - Vila Guarani', cidade:'São Paulo/SP', cep:'04310-020', tel:'11 96865-9315'},
+  'Inner Eventos':           {nome:'Inner Promoções, Eventos e Comércios de Bebidas Ltda.', end:'Rua Ibiraja, 7 - Vila Guarani', cidade:'São Paulo/SP', cep:'04310-020', tel:'11 96865-9315'},
+};
 
 function exportarExcel(){
   if(!_romaneioDataAtual.length){showToast('Nenhum dado para exportar.','warn');return;}
@@ -921,30 +936,76 @@ function exportarExcel(){
     const t=TRANSPORTADORAS.includes(n.transp)?n.transp:'Outros';
     grupos[t].push(n);
   });
-  // Uma aba por transportadora com NFs
+
   let algumDado=false;
+  const date=new Date().toLocaleDateString('pt-BR');
+
   TRANSPORTADORAS.forEach(t=>{
     const g=grupos[t];
     if(!g.length)return;
     algumDado=true;
-    const rows=[['NF','Empresa','Destinatário','UF','Vol.','Tipo','Obs.']];
+    const transp=TRANSP_INFO[t]||TRANSP_INFO['Outros'];
+
+    // Detectar empresa predominante do grupo
+    const empCount={};
+    g.forEach(n=>{empCount[n.empresa]=(empCount[n.empresa]||0)+1;});
+    const empPrincipal=Object.entries(empCount).sort((a,b)=>b[1]-a[1])[0][0];
+    const emit=EMIT_INFO[empPrincipal]||EMIT_INFO['AD Vinhos e Gastronomia'];
+
+    // ── CABEÇALHO ──
+    const rows=[
+      ['','Destinatário','','','','',''],
+      ['',transp.nome,'','','','',''],
+      ['','Endereço: '+transp.end,'','','','',''],
+      ['','Cidade/UF: '+transp.cidade,'','CEP: '+transp.cep,'','Telefone: '+transp.tel,''],
+      ['','','','','','',''],
+      ['','Remetente','','','','',''],
+      ['',emit.nome,'','','','',''],
+      ['','Endereço: '+emit.end,'','','','',''],
+      ['','Cidade/UF: '+emit.cidade,'','CEP: '+emit.cep,'','Telefone: '+emit.tel,''],
+      ['','','','','','',''],
+      // ── TABELA ──
+      ['NF','Destinatário','Empresa','UF','Vol.','Tipo','Obs.'],
+    ];
+
     g.forEach(n=>rows.push([
-      n.num||'—', n.empresa||'—', n.dest||'—', n.uf||'—',
+      n.num||'—',
+      n.dest||'—',
+      n.empresa||'—',
+      n.uf||'—',
       n.vol||1,
       n.personalizado?'Personalizado':'—',
       n.obs||'—'
     ]));
-    // Totals row
+
     const totalVol=g.reduce((a,b)=>a+(+b.vol||1),0);
-    rows.push(['','','','TOTAL',totalVol,'','']);
+    rows.push(['','','','Total de volumes:',totalVol,'','']);
+
+    // ── RODAPÉ ──
+    rows.push(['','','','','','','']);
+    rows.push(['Nome Motorista Legível:','','','','','Documento:','']);
+    rows.push(['Placa do veículo:','','','Data da Coleta:',date,'','']);
+    rows.push(['Transportadora:','','','','','Assinatura:','']);
+
     const ws=XLSX.utils.aoa_to_sheet(rows);
-    // Column widths
-    ws['!cols']=[{wch:10},{wch:28},{wch:32},{wch:6},{wch:6},{wch:14},{wch:20}];
+    ws['!cols']=[{wch:12},{wch:32},{wch:28},{wch:10},{wch:8},{wch:14},{wch:22}];
+
+    // Merge cabeçalho — colunas B até G (índices 1-6)
+    ws['!merges']=[
+      {s:{r:0,c:1},e:{r:0,c:6}}, // Destinatário label
+      {s:{r:1,c:1},e:{r:1,c:6}}, // Nome transp
+      {s:{r:2,c:1},e:{r:2,c:6}}, // Endereço
+      {s:{r:5,c:1},e:{r:5,c:6}}, // Remetente label
+      {s:{r:6,c:1},e:{r:6,c:6}}, // Nome emit
+      {s:{r:7,c:1},e:{r:7,c:6}}, // Endereço emit
+    ];
+
     XLSX.utils.book_append_sheet(wb, ws, t.substring(0,31));
   });
+
   if(!algumDado){showToast('Nenhuma NF para exportar.','warn');return;}
-  const date=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
-  XLSX.writeFile(wb, 'Romaneio_'+date+'.xlsx');
+  const dateFile=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  XLSX.writeFile(wb, 'Romaneio_'+dateFile+'.xlsx');
   showToast('Excel exportado com sucesso!','success');
   setTimeout(()=>closeRomaneio(),1500);
 }
