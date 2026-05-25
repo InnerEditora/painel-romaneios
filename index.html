@@ -469,13 +469,30 @@ function parseXML(str,fname){
     function g(tag){const el=doc.getElementsByTagNameNS(ns,tag)[0]||doc.getElementsByTagName(tag)[0];return el?el.textContent:'';}
     const num=g('nNF')||g('numero')||'?';
     const dh=g('dhEmi')||g('dEmi')||'';
-    const emissao=dh?dh.substring(0,10):'';
+    let emissao='';
+    if(dh){
+      // Handle both ISO date and date-only formats
+      const m=dh.match(/^(\d{4}-\d{2}-\d{2})/);
+      emissao=m?m[1]:dh.substring(0,10);
+    }
     const emitNome=g('xNome')||'';
     const destNome=extractDest(doc,ns);
     const uf=extractDestUF(doc,ns);
     const empresa=detectEmpresa(emitNome);
-    const allText=str.toLowerCase();
-    const personalizado=allText.includes('personalizado');
+    // Search for 'personalizado' in product descriptions (xProd tags)
+    const parser2=new DOMParser();
+    const doc2=parser2.parseFromString(str,'text/xml');
+    const ns2='http://www.portalfiscal.inf.br/nfe';
+    const prods=doc2.getElementsByTagNameNS(ns2,'xProd');
+    const prodsFallback=doc2.getElementsByTagName('xProd');
+    const allProds=[...prods,...prodsFallback];
+    let personalizado=false;
+    if(allProds.length){
+      personalizado=allProds.some(p=>p.textContent.toLowerCase().includes('personalizado'));
+    } else {
+      // Fallback: search full text
+      personalizado=str.toLowerCase().includes('personalizado');
+    }
     const nf={
       id:String(Date.now()+Math.random()),
       num,emissao,empresa,dest:destNome,uf,
