@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel de Romaneios · Inner Logística</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -256,6 +257,10 @@
       <div class="toolbar-sep"></div>
       <div id="foto-counter" style="font-size:13px;color:var(--muted)"></div>
       <button class="btn btn-danger" onclick="clearFotoQueue()" id="btn-clear-fotos" style="display:none">🗑️ Limpar tudo</button>
+      <label id="chk-adicionar-xml-wrap" style="display:none;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer">
+        <input type="checkbox" id="chk-adicionar-xml" style="width:15px;height:15px;cursor:pointer">
+        Adicionar NFs ao Painel XML após gerar
+      </label>
       <button class="btn btn-accent" onclick="gerarRomaneioFoto()" id="btn-romaneio-foto" style="display:none">≡ Gerar Romaneio</button>
     </div>
     <div id="foto-list"></div>
@@ -321,8 +326,9 @@
         <div style="font-size:17px;font-weight:600">Romaneio de Coleta</div>
         <div style="font-size:12px;opacity:.6;margin-top:2px" id="rom-date"></div>
       </div>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-accent" onclick="window.print()">🖨️ Imprimir</button>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-accent" onclick="exportarExcel()">📊 Exportar Excel</button>
+        <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">🖨️ Imprimir</button>
         <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="closeRomaneio()">✕ Fechar</button>
       </div>
     </div>
@@ -613,6 +619,7 @@ function showRomaneio(){
   const ids=new Set([...document.querySelectorAll('.row-chk:checked')].map(c=>c.dataset.id));
   const src=ids.size?nfs.filter(n=>ids.has(n.id)):nfs.filter(n=>n.status==='Pendente');
   src.forEach(n=>{if(groups[n.transp])groups[n.transp].push(n);else groups['Outros'].push(n);});
+  _romaneioDataAtual=src;
   body.innerHTML=buildRomaneioHTML(groups,'nf');
 }
 function closeRomaneio(){document.getElementById('romaneio-modal').style.display='none'}
@@ -724,6 +731,7 @@ function updateFotoUI(){
   const total=fotoQueue.length;
   document.getElementById('foto-counter').textContent=total?`${total} NF${total>1?'s':''} no lote`:'';
   document.getElementById('btn-clear-fotos').style.display=total?'inline-flex':'none';
+  document.getElementById('chk-adicionar-xml-wrap').style.display=total?'inline-flex':'none';
   document.getElementById('btn-romaneio-foto').style.display=total?'inline-flex':'none';
 }
 
@@ -779,11 +787,21 @@ function clearFotoQueue(){
 
 async function gerarRomaneioFoto(){
   if(!fotoQueue.length){showToast('Nenhuma NF no lote.','warn');return;}
+  const adicionarAoXML=document.getElementById('chk-adicionar-xml').checked;
   // Salvar todas no Sheets
   for(const entry of fotoQueue){
     const f=entry.fields;
     const nf={id:entry.id,...f,status:'Pendente',obs:'',origem:'foto'};
     await salvarNFRemota(nf);
+    // Adicionar ao painel XML se checkbox marcado
+    if(adicionarAoXML){
+      nfs.push({...nf});
+    }
+  }
+  if(adicionarAoXML){
+    renderTable();
+    updateStats();
+    showToast(fotoQueue.length+' NF(s) adicionadas ao Painel XML!','success');
   }
   // Build romaneio
   const modal=document.getElementById('romaneio-modal');
@@ -795,6 +813,8 @@ async function gerarRomaneioFoto(){
     const t=TRANSPORTADORAS.includes(f.transp)?f.transp:'Outros';
     groups[t].push(f);
   });
+  const srcFoto=fotoQueue.map(e=>({...e.fields,id:e.id}));
+  _romaneioDataAtual=srcFoto;
   document.getElementById('romaneio-body').innerHTML=buildRomaneioHTML(groups,'foto');
   showToast(fotoQueue.length+' NF(s) salvas e romaneio gerado!','success');
 }
@@ -858,6 +878,46 @@ function renderHistorico(rows){
     `;
     tbody.appendChild(tr);
   });
+}
+
+// ═══════ EXCEL EXPORT ═══════
+let _romaneioDataAtual = [];
+let _romaneioTituloAtual = '';
+
+function exportarExcel(){
+  if(!_romaneioDataAtual.length){showToast('Nenhum dado para exportar.','warn');return;}
+  const wb = XLSX.utils.book_new();
+  const grupos = {};
+  TRANSPORTADORAS.forEach(t=>{grupos[t]=[]});
+  _romaneioDataAtual.forEach(n=>{
+    const t=TRANSPORTADORAS.includes(n.transp)?n.transp:'Outros';
+    grupos[t].push(n);
+  });
+  // Uma aba por transportadora com NFs
+  let algumDado=false;
+  TRANSPORTADORAS.forEach(t=>{
+    const g=grupos[t];
+    if(!g.length)return;
+    algumDado=true;
+    const rows=[['NF','Empresa','Destinatário','UF','Vol.','Tipo','Obs.']];
+    g.forEach(n=>rows.push([
+      n.num||'—', n.empresa||'—', n.dest||'—', n.uf||'—',
+      n.vol||1,
+      n.personalizado?'Personalizado':'—',
+      n.obs||'—'
+    ]));
+    // Totals row
+    const totalVol=g.reduce((a,b)=>a+(+b.vol||1),0);
+    rows.push(['','','','TOTAL',totalVol,'','']);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    // Column widths
+    ws['!cols']=[{wch:10},{wch:28},{wch:32},{wch:6},{wch:6},{wch:14},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, ws, t.substring(0,31));
+  });
+  if(!algumDado){showToast('Nenhuma NF para exportar.','warn');return;}
+  const date=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  XLSX.writeFile(wb, 'Romaneio_'+date+'.xlsx');
+  showToast('Excel exportado com sucesso!','success');
 }
 
 // ═══════ TOAST ═══════
