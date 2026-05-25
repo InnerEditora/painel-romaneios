@@ -95,6 +95,7 @@
   .badge-despachada{background:#d4f5e5;color:#0a6636}
   .badge-revisao{background:#fde8e8;color:#8a0000}
   .badge-personalizado{background:#ede8f8;color:#4a1d96}
+  .badge-reenvio{background:#fde8f8;color:#7a0060}
   select.transp{padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;color:var(--text);background:#fff;max-width:160px}
   .obs-input{padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;color:var(--text);width:130px;background:#fff}
   .obs-input:focus,.transp:focus{outline:none;border-color:var(--navy-3)}
@@ -224,7 +225,7 @@
           <tr>
             <th><input type="checkbox" id="chk-all" onchange="toggleAll(this)"></th>
             <th>NF</th><th>Emissão</th><th>Empresa</th><th>Destinatário</th>
-            <th>UF</th><th>Transportadora</th><th>Vol.</th><th>Tipo</th><th>Status</th><th>Observação</th>
+            <th>UF</th><th>Transportadora</th><th>Vol.</th><th>Tipo</th><th>Status</th><th>Reenvio</th><th>Observação</th>
           </tr>
         </thead>
         <tbody id="nf-tbody"></tbody>
@@ -328,8 +329,8 @@
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button class="btn btn-accent" onclick="exportarExcel()">📊 Exportar Excel</button>
-        <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">🖨️ Imprimir</button>
-        <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="closeRomaneio()">✕ Fechar</button>
+        <button class="btn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">🖨️ Imprimir</button>
+        <button class="btn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="closeRomaneio()">✕ Fechar</button>
       </div>
     </div>
     <div id="romaneio-body" style="padding:24px"></div>
@@ -560,6 +561,7 @@ function renderTable(){
       <td><input type="number" class="vol-input" min="1" value="${n.vol}" onchange="updateField('${n.id}','vol',+this.value)"></td>
       <td>${n.personalizado?'<span class="status-badge badge-personalizado">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><span class="status-badge ${n.status==='Pendente'?'badge-pendente':'badge-despachada'}">${n.status}</span></td>
+      <td>${n.reenvio?'<span class="status-badge badge-reenvio">Reenvio</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><input class="obs-input" placeholder="Obs..." value="${esc(n.obs)}" onchange="updateField('${n.id}','obs',this.value)"></td>
     `;
     tbody.appendChild(tr);
@@ -712,7 +714,8 @@ function processarJSON(){
           empresa:detectEmpresa(String(item.empresa||'')),
           transp:TRANSPORTADORAS.includes(item.transp)?item.transp:'Mandaê',
           vol:Math.max(1,parseInt(item.vol)||1),
-          personalizado:item.personalizado===true||String(item.personalizado).toLowerCase()==='true'
+          personalizado:item.personalizado===true||String(item.personalizado).toLowerCase()==='true',
+          reenvio:false
         }
       };
       fotoQueue.push(entry);
@@ -741,13 +744,13 @@ function renderFotoList(){
   if(!fotoQueue.length)return;
   const wrap=document.createElement('div');
   wrap.style.cssText='background:#fff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px';
-  wrap.innerHTML=`<div style="background:#f8f9fd;padding:10px 16px;border-bottom:1.5px solid var(--border);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:grid;grid-template-columns:90px 1fr 1fr 60px 160px 70px 60px 36px;gap:8px;align-items:center">
-    <span>NF</span><span>Destinatário</span><span>Empresa</span><span>UF</span><span>Transportadora</span><span>Tipo</span><span>Vol.</span><span></span>
+  wrap.innerHTML=`<div style="background:#f8f9fd;padding:10px 16px;border-bottom:1.5px solid var(--border);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:grid;grid-template-columns:90px 1fr 1fr 60px 160px 70px 60px 70px 36px;gap:8px;align-items:center">
+    <span>NF</span><span>Destinatário</span><span>Empresa</span><span>UF</span><span>Transportadora</span><span>Tipo</span><span>Vol.</span><span>Reenvio</span><span></span>
   </div>`;
   fotoQueue.forEach((entry,idx)=>{
     const f=entry.fields;
     const row=document.createElement('div');
-    row.style.cssText=`display:grid;grid-template-columns:90px 1fr 1fr 60px 160px 70px 60px 36px;gap:8px;align-items:center;padding:8px 16px;border-bottom:${idx===fotoQueue.length-1?'none':'1px solid #f0f2f8'}`;
+    row.style.cssText=`display:grid;grid-template-columns:90px 1fr 1fr 60px 160px 70px 60px 70px 36px;gap:8px;align-items:center;padding:8px 16px;border-bottom:${idx===fotoQueue.length-1?'none':'1px solid #f0f2f8'}`;
     row.innerHTML=`
       <input type="text" value="${esc(f.num)}" oninput="fotoQueue[${idx}].fields.num=this.value"
         style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;width:100%;outline:none">
@@ -766,6 +769,10 @@ function renderFotoList(){
       <div style="text-align:center">${f.personalizado?'<span class="status-badge badge-personalizado" style="font-size:10px;padding:3px 7px">Pers.</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</div>
       <input type="number" min="1" value="${f.vol}" oninput="fotoQueue[${idx}].fields.vol=+this.value"
         style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;width:100%;text-align:center;outline:none">
+      <label style="display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text)">
+        <input type="checkbox" ${f.reenvio?'checked':''} onchange="fotoQueue[${idx}].fields.reenvio=this.checked"
+          style="width:15px;height:15px;cursor:pointer">
+      </label>
       <button onclick="removeFoto('${entry.id}')" title="Remover"
         style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:2px;line-height:1">×</button>
     `;
@@ -788,12 +795,33 @@ function clearFotoQueue(){
 async function gerarRomaneioFoto(){
   if(!fotoQueue.length){showToast('Nenhuma NF no lote.','warn');return;}
   const adicionarAoXML=document.getElementById('chk-adicionar-xml').checked;
-  // Salvar todas no Sheets
+
+  // Verificar duplicatas (apenas se não for reenvio)
+  if(adicionarAoXML){
+    const duplicatas=fotoQueue.filter(entry=>{
+      const f=entry.fields;
+      if(f.reenvio)return false; // reenvios sempre permitidos
+      return nfs.some(n=>String(n.num)===String(f.num)&&n.empresa===f.empresa);
+    });
+    if(duplicatas.length){
+      const lista=duplicatas.map(e=>`NF ${e.fields.num} (${e.fields.empresa})`).join('\n');
+      const continuar=confirm(
+        `⚠️ As seguintes NFs já estão no Painel XML:\n\n${lista}\n\nDeseja removê-las do lote antes de continuar?`
+      );
+      if(continuar){
+        const dupIds=new Set(duplicatas.map(e=>e.id));
+        fotoQueue=fotoQueue.filter(e=>!dupIds.has(e.id));
+        updateFotoUI();
+        if(!fotoQueue.length){showToast('Todas as NFs eram duplicatas. Lote limpo.','warn');return;}
+      }
+    }
+  }
+
+  // Salvar todas no Sheets e adicionar ao painel XML se marcado
   for(const entry of fotoQueue){
     const f=entry.fields;
     const nf={id:entry.id,...f,status:'Pendente',obs:'',origem:'foto'};
     await salvarNFRemota(nf);
-    // Adicionar ao painel XML se checkbox marcado
     if(adicionarAoXML){
       nfs.push({...nf});
     }
@@ -918,6 +946,7 @@ function exportarExcel(){
   const date=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
   XLSX.writeFile(wb, 'Romaneio_'+date+'.xlsx');
   showToast('Excel exportado com sucesso!','success');
+  setTimeout(()=>closeRomaneio(),1500);
 }
 
 // ═══════ TOAST ═══════
