@@ -419,7 +419,7 @@ async function carregarNFsHoje(){
     const resp=await fetch(url);
     const data=await resp.json();
     if(data.erro) throw new Error(data.erro);
-    nfs=(data.nfs||[]).map(n=>({...n,id:n.id||String(Date.now()+Math.random())}));
+    nfs=(data.nfs||[]).map(n=>({...n,id:String(n.id||Date.now()+''+Math.floor(Math.random()*1000))}));
     renderTable();
     updateStats();
     setSyncStatus('✓ Sincronizado','ok');
@@ -432,14 +432,26 @@ async function carregarNFsHoje(){
 
 async function salvarNFRemota(nf){
   try{
-    await apiCall({action:'salvarNF',nf});
-  }catch(e){}
+    const url=API_URL+'?action=salvarNF&nf='+encodeURIComponent(JSON.stringify(nf));
+    const resp=await fetch(url);
+    const data=await resp.json();
+    if(data.erro) throw new Error(data.erro);
+    setSyncStatus('✓ Sincronizado','ok');
+    setTimeout(()=>setSyncStatus(''),3000);
+  }catch(e){
+    setSyncStatus('✗ Erro de sync','err');
+  }
 }
 
 async function atualizarStatusRemoto(id,status){
   try{
-    await apiCall({action:'atualizarStatus',id,status});
-  }catch(e){}
+    const url=API_URL+'?action=atualizarStatus&id='+encodeURIComponent(id)+'&status='+encodeURIComponent(status);
+    const resp=await fetch(url);
+    const data=await resp.json();
+    if(data.erro) throw new Error(data.erro);
+  }catch(e){
+    showToast('Erro ao atualizar status: '+e.message,'error');
+  }
 }
 
 // ═══════ TABS ═══════
@@ -483,7 +495,7 @@ function parseXML(str,fname){
     const xProdMatches=str.match(/<xProd[^>]*>([^<]*)<\/xProd>/gi)||[];
     const personalizado=xProdMatches.some(p=>p.toLowerCase().includes('personalizado'));
     const nf={
-      id:String(Date.now()+Math.random()),
+      id:Date.now()+''+Math.floor(Math.random()*1000),
       num,emissao,empresa,dest:destNome,uf,
       transp:'Mandaê',vol:1,status:'Pendente',obs:'',
       personalizado,origem:'xml'
@@ -526,7 +538,7 @@ function detectEmpresa(nome){
 
 function addNFManual(){
   const nf={
-    id:String(Date.now()+Math.random()),
+    id:Date.now()+''+Math.floor(Math.random()*1000),
     num:'MANUAL',emissao:new Date().toISOString().substring(0,10),
     empresa:'AD Vinhos e Gastronomia',dest:'',uf:'SP',
     transp:'Mandaê',vol:1,status:'Pendente',obs:'',personalizado:false,origem:'manual'
@@ -600,15 +612,18 @@ async function despacharSelecionadas(){
   const ids=[...document.querySelectorAll('.row-chk:checked')].map(c=>c.dataset.id);
   if(!ids.length){showToast('Nenhuma NF selecionada.','warn');return;}
   if(!confirm(`Despachar ${ids.length} NF(s) selecionada(s)?`))return;
+  let ok=0;
   for(const id of ids){
-    const n=nfs.find(x=>x.id===id);
+    const n=nfs.find(x=>String(x.id)===String(id));
     if(n){
       n.status='Despachada';
-      await atualizarStatusRemoto(id,'Despachada');
+      ok++;
+      try{ await atualizarStatusRemoto(String(id),'Despachada'); }catch(e){}
     }
   }
   renderTable();
-  showToast(ids.length+' NF(s) despachada(s)!','success');
+  updateStats();
+  if(ok) showToast(ok+' NF(s) despachada(s)!','success');
 }
 
 function clearDespachadas(){
@@ -711,7 +726,7 @@ function processarJSON(){
     if(!Array.isArray(arr)||!arr.length)throw new Error('JSON vazio ou não é um array');
     arr.forEach(item=>{
       const entry={
-        id:String(Date.now()+Math.random()),
+        id:Date.now()+''+Math.floor(Math.random()*1000),
         fields:{
           num:String(item.num||'').trim(),
           emissao:String(item.emissao||new Date().toISOString().substring(0,10)).trim(),
