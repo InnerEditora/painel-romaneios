@@ -496,13 +496,26 @@ function parseXML(str,fname){
     const destNome=extractDest(doc,ns);
     const uf=extractDestUF(doc,ns);
     const empresa=detectEmpresa(emitNome);
+    // Detect transportadora from <transporta> tag
+    const transpMatch=str.match(/<transporta>[\s\S]*?<xNome>(.*?)<\/xNome>/i);
+    const transpNome=transpMatch?transpMatch[1].toLowerCase():'';
+    let transp='Mandaê';
+    if(transpNome.includes('inner transporte')||transpNome.includes('03350624')){
+      transp='Inner Transporte';
+    }else if(transpNome.includes('mandae')||transpNome.includes('mandaê')||transpNome.includes('19782476')){
+      transp='Mandaê';
+    }else if(transpNome.includes('correio')){
+      transp='Correios';
+    }else if(transpNome.includes('lalamove')){
+      transp='Lalamove';
+    }
     // Search for 'personalizado' in xProd tags using regex (most reliable)
     const xProdMatches=str.match(/<xProd[^>]*>([^<]*)<\/xProd>/gi)||[];
     const personalizado=xProdMatches.some(p=>p.toLowerCase().includes('personalizado'));
     const nf={
       id:Date.now()+''+Math.floor(Math.random()*1000),
       num,emissao,empresa,dest:destNome,uf,
-      transp:'Mandaê',vol:1,status:'Pendente',obs:'',
+      transp,vol:1,status:'Pendente',obs:'',
       personalizado,origem:'xml'
     };
     nfs.push(nf);
