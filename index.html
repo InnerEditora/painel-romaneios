@@ -413,13 +413,18 @@ async function apiCall(body){
 async function carregarNFsHoje(){
   setSyncStatus('⟳ Carregando…');
   try{
-    const today=new Date().toISOString().substring(0,10);
-    // Use GET via fetch with URL params
-    const url=API_URL+'?action=buscarNFs&data='+today;
+    // Load ALL NFs — filter pending ones regardless of date
+    const url=API_URL+'?action=buscarNFs';
     const resp=await fetch(url);
     const data=await resp.json();
     if(data.erro) throw new Error(data.erro);
-    nfs=(data.nfs||[]).map(n=>({...n,id:String(n.id||Date.now()+''+Math.floor(Math.random()*1000))}));
+    // Show pending NFs from any date + today's dispatched
+    const today=new Date().toISOString().substring(0,10);
+    const todas=(data.nfs||[]).map(n=>({...n,id:String(n.id||Date.now()+''+Math.floor(Math.random()*1000))}));
+    nfs=todas.filter(n=>
+      n.status==='Pendente' ||
+      (n.data_registro&&n.data_registro.startsWith(today))
+    );
     renderTable();
     updateStats();
     setSyncStatus('✓ Sincronizado','ok');
@@ -884,7 +889,16 @@ async function buscarHistorico(){
     if(data.erro)throw new Error(data.erro);
 
     let rows=(data.nfs||[]).filter(n=>{
-      const dr=n.data_registro?n.data_registro.substring(0,10):'';
+      // Normalize date_registro to YYYY-MM-DD regardless of timezone/format
+      let dr='';
+      if(n.data_registro&&n.data_registro!=='undefined'){
+        try{
+          // Convert ISO string to local date
+          const d=new Date(n.data_registro);
+          if(!isNaN(d)) dr=d.toLocaleDateString('sv-SE'); // sv-SE gives YYYY-MM-DD
+          else dr=n.data_registro.substring(0,10);
+        }catch(e){ dr=n.data_registro.substring(0,10); }
+      }
       if(from&&dr<from)return false;
       if(to&&dr>to)return false;
       if(femp&&n.empresa!==femp)return false;
