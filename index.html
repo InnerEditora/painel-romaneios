@@ -136,6 +136,11 @@
   #toast.error{background:var(--danger)}
   #toast.warn{background:var(--warn);color:var(--navy)}
 
+  .sort-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;padding:0 4px;display:inline-flex;align-items:center;gap:3px;font-family:inherit;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+  .sort-btn:hover{color:var(--navy)}
+  .sort-btn.asc::after{content:' ↑'}
+  .sort-btn.desc::after{content:' ↓'}
+  .sort-btn.none::after{content:' ↕';opacity:.4}
   @media(max-width:768px){.stats{grid-template-columns:repeat(2,1fr)}.main{padding:16px}}
 
   @media print{
@@ -224,7 +229,8 @@
         <thead>
           <tr>
             <th><input type="checkbox" id="chk-all" onchange="toggleAll(this)"></th>
-            <th>NF</th><th>Emissão</th><th>Empresa</th><th>Destinatário</th>
+            <th><button class="sort-btn none" id="sort-nf" onclick="toggleSort('nf')">NF</button></th>
+            <th><button class="sort-btn none" id="sort-emissao" onclick="toggleSort('emissao')">Emissão</button></th><th>Empresa</th><th>Destinatário</th>
             <th>UF</th><th>Transportadora</th><th>Vol.</th><th>Tipo</th><th>Status</th><th>Reenvio</th><th>Observação</th>
           </tr>
         </thead>
@@ -370,6 +376,7 @@ function doLogout(){
 // ═══════ APP INIT ═══════
 let nfs=[];
 let fotoQueue=[];
+let sortState={col:null,dir:null}; // col: 'nf'|'emissao', dir: 'asc'|'desc'
 
 function initApp(){
   const d=new Date();
@@ -512,9 +519,16 @@ function parseXML(str,fname){
     // Search for 'personalizado' in xProd tags using regex (most reliable)
     const xProdMatches=str.match(/<xProd[^>]*>([^<]*)<\/xProd>/gi)||[];
     const personalizado=xProdMatches.some(p=>p.toLowerCase().includes('personalizado'));
+    // Validate required fields
+    if(!num||num==='?'||!destNome){
+      showToast('XML inválido ('+fname+'): número ou destinatário não encontrado.','error');
+      return;
+    }
+    // Fix date format if needed
+    const emissaoFix=emissao?emissao.substring(0,10):'';
     const nf={
       id:Date.now()+''+Math.floor(Math.random()*1000),
-      num,emissao,empresa,dest:destNome,uf,
+      num,emissao:emissaoFix,empresa,dest:destNome,uf,
       transp,vol:1,status:'Pendente',obs:'',
       personalizado,origem:'xml'
     };
@@ -531,7 +545,13 @@ function extractDest(doc,ns){
   const dests=doc.getElementsByTagNameNS(ns,'dest');
   if(dests.length){
     const xn=dests[0].getElementsByTagNameNS(ns,'xNome')[0];
-    return xn?xn.textContent:'';
+    if(xn) return xn.textContent;
+  }
+  // Fallback without namespace
+  const d2=doc.getElementsByTagName('dest');
+  if(d2.length){
+    const xn=d2[0].getElementsByTagName('xNome')[0];
+    if(xn) return xn.textContent;
   }
   return '';
 }
@@ -540,7 +560,13 @@ function extractDestUF(doc,ns){
   const dests=doc.getElementsByTagNameNS(ns,'dest');
   if(dests.length){
     const uf=dests[0].getElementsByTagNameNS(ns,'UF')[0];
-    return uf?uf.textContent:'';
+    if(uf) return uf.textContent;
+  }
+  // Fallback without namespace
+  const d2=doc.getElementsByTagName('dest');
+  if(d2.length){
+    const uf=d2[0].getElementsByTagName('UF')[0];
+    if(uf) return uf.textContent;
   }
   return '';
 }
@@ -568,6 +594,42 @@ function addNFManual(){
 }
 
 // ═══════ TABLE ═══════
+function toggleSort(col){
+  const btn=document.getElementById('sort-'+col);
+  const otherCol=col==='nf'?'emissao':'nf';
+  const otherBtn=document.getElementById('sort-'+otherCol);
+  // Reset other column
+  otherBtn.className='sort-btn none';
+  if(sortState.col===col&&sortState.dir==='asc'){
+    sortState={col,dir:'desc'};
+    btn.className='sort-btn desc';
+  }else if(sortState.col===col&&sortState.dir==='desc'){
+    sortState={col:null,dir:null};
+    btn.className='sort-btn none';
+  }else{
+    sortState={col,dir:'asc'};
+    btn.className='sort-btn asc';
+  }
+  renderTable();
+}
+
+function getSorted(rows){
+  if(!sortState.col||!sortState.dir) return rows;
+  const dir=sortState.dir==='asc'?1:-1;
+  return [...rows].sort((a,b)=>{
+    if(sortState.col==='nf'){
+      const an=parseInt(a.num)||0;
+      const bn=parseInt(b.num)||0;
+      return (an-bn)*dir;
+    }else if(sortState.col==='emissao'){
+      const ad=a.emissao||'';
+      const bd=b.emissao||'';
+      return ad.localeCompare(bd)*dir;
+    }
+    return 0;
+  });
+}
+
 function getFiltered(){
   const fst=document.getElementById('f-status').value;
   const femp=document.getElementById('f-empresa').value;
@@ -577,7 +639,7 @@ function getFiltered(){
 
 function renderTable(){
   const tbody=document.getElementById('nf-tbody');
-  const rows=getFiltered();
+  const rows=getSorted(getFiltered());
   tbody.innerHTML='';
   document.getElementById('empty-xml').style.display=rows.length?'none':'block';
   rows.forEach(n=>{
