@@ -657,7 +657,7 @@ function renderTable(){
         </select>
       </td>
       <td><input type="number" class="vol-input" min="1" value="${n.vol}" onchange="updateField('${n.id}','vol',+this.value)"></td>
-      <td>${n.personalizado?'<span class="status-badge badge-personalizado">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
+      <td>${(n.personalizado===true||String(n.personalizado).toLowerCase()==='true')?'<span class="status-badge badge-personalizado">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><span class="status-badge ${n.status==='Pendente'?'badge-pendente':'badge-despachada'}">${n.status}</span></td>
       <td>${n.reenvio?'<span class="status-badge badge-reenvio">Reenvio</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><input class="obs-input" placeholder="Obs..." value="${esc(n.obs)}" onchange="updateField('${n.id}','obs',this.value)"></td>
