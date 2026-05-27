@@ -647,7 +647,7 @@ function renderTable(){
     tr.innerHTML=`
       <td><input type="checkbox" class="row-chk" data-id="${n.id}" onchange="updateStats()"></td>
       <td class="nf-num">${esc(n.num)}</td>
-      <td style="font-size:12.5px;color:var(--muted)">${esc(n.emissao)}</td>
+      <td style="font-size:12.5px;color:var(--muted)">${formatDate(n.emissao)}</td>
       <td><span class="empresa-tag">${esc(n.empresa.substring(0,18)+(n.empresa.length>18?'...':''))}</span></td>
       <td style="font-size:13px">${esc(n.dest)}</td>
       <td style="font-size:12.5px;font-weight:600;color:var(--muted)">${esc(n.uf)}</td>
@@ -657,7 +657,7 @@ function renderTable(){
         </select>
       </td>
       <td><input type="number" class="vol-input" min="1" value="${n.vol}" onchange="updateField('${n.id}','vol',+this.value)"></td>
-      <td>${(n.personalizado===true||String(n.personalizado).toLowerCase()==='true')?'<span class="status-badge badge-personalizado">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
+      <td>${isPersonalizado(n.personalizado)?'<span class="status-badge badge-personalizado">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><span class="status-badge ${n.status==='Pendente'?'badge-pendente':'badge-despachada'}">${n.status}</span></td>
       <td>${n.reenvio?'<span class="status-badge badge-reenvio">Reenvio</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><input class="obs-input" placeholder="Obs..." value="${esc(n.obs)}" onchange="updateField('${n.id}','obs',this.value)"></td>
@@ -668,6 +668,22 @@ function renderTable(){
 }
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function isPersonalizado(v){
+  return v===true||v===1||String(v).toLowerCase()==='true'||String(v).toLowerCase()==='sim';
+}
+
+function formatDate(d){
+  if(!d||d==='undefined') return '—';
+  // Already YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  // Try parsing
+  try{
+    const dt=new Date(d);
+    if(!isNaN(dt)) return dt.toLocaleDateString('sv-SE');
+  }catch(e){}
+  return d;
+}
 
 function updateField(id,field,val){
   const n=nfs.find(x=>x.id===id);
@@ -752,7 +768,7 @@ function buildRomaneioHTML(groups,tipo){
             <td style="padding:9px 14px">${esc(n.dest||'—')}</td>
             <td style="padding:9px 14px;font-size:12px;font-weight:600;color:var(--muted)">${esc(n.uf||'—')}</td>
             <td style="padding:9px 14px;text-align:center;font-weight:600">${n.vol||1}</td>
-            <td style="padding:9px 14px">${n.personalizado?'<span style="background:#ede8f8;color:#4a1d96;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
+            <td style="padding:9px 14px">${isPersonalizado(n.personalizado)?'<span style="background:#ede8f8;color:#4a1d96;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
             ${tipo==='nf'?`<td style="padding:9px 14px;font-size:12px;color:var(--muted)">${esc(n.obs)||'—'}</td>`:''}
           </tr>`).join('')}
         </tbody>
@@ -1003,13 +1019,13 @@ function renderHistorico(rows){
     const despDate=n.despachado_em&&n.despachado_em!=='undefined'&&n.despachado_em?new Date(n.despachado_em).toLocaleString('pt-BR'):'—';
     tr.innerHTML=`
       <td class="nf-num">${esc(n.num)}</td>
-      <td style="font-size:12.5px;color:var(--muted)">${esc(n.emissao)}</td>
+      <td style="font-size:12.5px;color:var(--muted)">${formatDate(n.emissao)}</td>
       <td><span class="empresa-tag">${esc((n.empresa||'').substring(0,18)+((n.empresa||'').length>18?'...':''))}</span></td>
       <td style="font-size:13px">${esc(n.dest)}</td>
       <td style="font-size:12.5px;font-weight:600;color:var(--muted)">${esc(n.uf)}</td>
       <td style="font-size:12.5px">${esc(n.transp)}</td>
       <td style="text-align:center;font-weight:600">${n.vol||1}</td>
-      <td>${n.personalizado===true||n.personalizado==='true'?'<span class="status-badge badge-personalizado">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
+      <td>${isPersonalizado(n.personalizado)?'<span class="status-badge badge-personalizado">Personalizado</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><span class="status-badge ${n.status==='Pendente'?'badge-pendente':'badge-despachada'}">${esc(n.status)}</span></td>
       <td style="font-size:12px;color:var(--muted)">${regDate}</td>
       <td style="font-size:12px;color:var(--muted)">${despDate}</td>
