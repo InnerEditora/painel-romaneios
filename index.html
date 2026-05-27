@@ -427,7 +427,7 @@ async function carregarNFsHoje(){
     if(data.erro) throw new Error(data.erro);
     // Show pending NFs from any date + today's dispatched
     const today=new Date().toISOString().substring(0,10);
-    const todas=(data.nfs||[]).map(n=>({...n,id:String(n.id||Date.now()+''+Math.floor(Math.random()*1000))}));
+    const todas=(data.nfs||[]).map(n=>({...n,id:String(n.id||Date.now()+''+Math.floor(Math.random()*1000)),personalizado:n.personalizado===true||String(n.personalizado).toLowerCase()==='true'}));
     nfs=todas.filter(n=>
       n.status==='Pendente' ||
       (n.data_registro&&n.data_registro.startsWith(today))
