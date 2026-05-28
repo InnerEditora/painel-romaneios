@@ -481,9 +481,24 @@ function switchTab(t){
 // ═══════ XML ═══════
 function loadXMLs(e){
   const files=[...e.target.files];
+  let importados=0;
+  let falhas=[];
+  let processados=0;
   files.forEach(f=>{
     const r=new FileReader();
-    r.onload=ev=>parseXML(ev.target.result,f.name);
+    r.onload=ev=>{
+      const resultado=parseXML(ev.target.result,f.name);
+      if(resultado) importados++;
+      else falhas.push(f.name);
+      processados++;
+      if(processados===files.length){
+        if(falhas.length===0){
+          showToast(`✅ ${importados} NF(s) importada(s) com sucesso!`,'success');
+        } else {
+          showToast(`⚠️ ${importados} importada(s), ${falhas.length} falha(s): ${falhas.join(', ')}`,'warn');
+        }
+      }
+    };
     r.readAsText(f,'utf-8');
   });
   e.target.value='';
@@ -526,7 +541,7 @@ function parseXML(str,fname){
     // Validate required fields
     if(!num||num==='?'||!destNome){
       showToast('XML inválido ('+fname+'): número ou destinatário não encontrado.','error');
-      return;
+      return false;
     }
     // Fix date format if needed
     const emissaoFix=emissao?emissao.substring(0,10):'';
@@ -540,8 +555,10 @@ function parseXML(str,fname){
     renderTable();
     updateStats();
     salvarNFRemota(nf);
+    return true;
   }catch(err){
     showToast('Erro ao ler XML: '+fname,'error');
+    return false;
   }
 }
 
@@ -642,14 +659,17 @@ function getFiltered(){
 }
 
 function renderTable(){
+  // Preserve currently selected IDs before re-rendering
+  const selectedIds=new Set([...document.querySelectorAll('.row-chk:checked')].map(c=>c.dataset.id));
   const tbody=document.getElementById('nf-tbody');
   const rows=getSorted(getFiltered());
   tbody.innerHTML='';
   document.getElementById('empty-xml').style.display=rows.length?'none':'block';
   rows.forEach(n=>{
     const tr=document.createElement('tr');
+    const isChecked=selectedIds.has(n.id)?'checked':'';
     tr.innerHTML=`
-      <td><input type="checkbox" class="row-chk" data-id="${n.id}" onchange="updateStats()"></td>
+      <td><input type="checkbox" class="row-chk" data-id="${n.id}" ${isChecked} onchange="updateStats()"></td>
       <td class="nf-num">${esc(n.num)}</td>
       <td style="font-size:12.5px;color:var(--muted)">${formatDate(n.emissao)}</td>
       <td><span class="empresa-tag">${esc(n.empresa.substring(0,18)+(n.empresa.length>18?'...':''))}</span></td>
